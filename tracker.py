@@ -9,12 +9,18 @@ MIN_SAMPLES = 5          # don't show stats until we have enough data
 def load():
     if not os.path.exists(TRACKER_PATH):
         return []
-    with open(TRACKER_PATH) as f:
-        return json.load(f)
+    try:
+        with open(TRACKER_PATH) as f:
+            return json.load(f)
+    except Exception:
+        print("  [tracker] predictions.json corrupted, resetting.")
+        return []
 
 def save(data):
-    with open(TRACKER_PATH, "w") as f:
+    tmp = TRACKER_PATH + ".tmp"
+    with open(tmp, "w") as f:
         json.dump(data, f, indent=2)
+    os.replace(tmp, TRACKER_PATH)
 
 def log_prediction(direction, confidence, price):
     data = load()

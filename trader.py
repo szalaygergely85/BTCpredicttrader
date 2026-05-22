@@ -3,25 +3,39 @@ import os
 from datetime import datetime
 
 PORTFOLIO_PATH = "portfolio.json"
-STARTING_USDT = 20.0
+STARTING_USDT = 2.0
 
 def load_portfolio():
     if not os.path.exists(PORTFOLIO_PATH):
         portfolio = {
             "usdt": STARTING_USDT,
             "btc": 0.0,
-            "short": None,       # {"entry_price": float, "btc": float, "collateral": float}
+            "short": None,
             "trades": [],
             "starting_usdt": STARTING_USDT,
         }
         save_portfolio(portfolio)
         return portfolio
-    with open(PORTFOLIO_PATH) as f:
-        return json.load(f)
+    try:
+        with open(PORTFOLIO_PATH) as f:
+            return json.load(f)
+    except Exception:
+        print("  [trader] portfolio.json corrupted, resetting.")
+        portfolio = {
+            "usdt": STARTING_USDT,
+            "btc": 0.0,
+            "short": None,
+            "trades": [],
+            "starting_usdt": STARTING_USDT,
+        }
+        save_portfolio(portfolio)
+        return portfolio
 
 def save_portfolio(portfolio):
-    with open(PORTFOLIO_PATH, "w") as f:
+    tmp = PORTFOLIO_PATH + ".tmp"
+    with open(tmp, "w") as f:
         json.dump(portfolio, f, indent=2)
+    os.replace(tmp, PORTFOLIO_PATH)
 
 def _record_trade(portfolio, action, price, btc, usdt, note=""):
     total_value = _total_value(portfolio, price)
@@ -64,7 +78,8 @@ def execute(signal, price):
 
     # --- BUY LONG ---
     if signal in ("BUY", "STRONG BUY") and portfolio["usdt"] > 1.0:
-        spend = portfolio["usdt"] * 0.10
+        pct = 0.50 if portfolio["usdt"] < 1000 else 0.10
+        spend = portfolio["usdt"] * pct
         bought = spend / price
         portfolio["usdt"] -= spend
         portfolio["btc"] += bought
@@ -81,7 +96,8 @@ def execute(signal, price):
 
     # --- OPEN SHORT ---
     if signal in ("SELL", "STRONG SELL") and not portfolio.get("short") and portfolio["usdt"] > 1.0:
-        collateral = portfolio["usdt"] * 0.10
+        pct = 0.50 if portfolio["usdt"] < 1000 else 0.10
+        collateral = portfolio["usdt"] * pct
         short_btc = collateral / price
         portfolio["usdt"] -= collateral
         portfolio["short"] = {
