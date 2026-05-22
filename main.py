@@ -31,19 +31,27 @@ def run():
         trade, portfolio = trader.execute(signal, current_price)
 
         if trade:
+            icons = {"BUY": "💰 LONG  ", "SELL": "💸 SELL  ", "OPEN SHORT": "🔻 SHORT ", "CLOSE SHORT": "✅ COVER "}
+            icon = icons.get(trade["action"], "   ")
+            note = f" ({trade['note']})" if trade.get("note") else ""
             print(
-                f"  {'💰 BOUGHT' if trade['action'] == 'BUY' else '💸 SOLD  '} "
-                f"{trade['btc']:.6f} BTC for ${trade['usdt']:,.2f} "
-                f"| Portfolio: ${trade['portfolio_value']:,.2f} "
-                f"| P&L: {'+'if trade['pnl'] >= 0 else ''}{trade['pnl']:,.2f} ({'+' if trade['pnl'] >= 0 else ''}{(trade['pnl'] / 20 * 100):.2f}%)"
+                f"  {icon} {trade['btc']:.6f} BTC @ ${trade['price']:,.2f}"
+                f" | ${trade['usdt']:,.4f}{note}"
+                f" | Portfolio: ${trade['portfolio_value']:,.2f}"
+                f" | P&L: {'+' if trade['pnl'] >= 0 else ''}{trade['pnl']:,.4f}"
             )
-        else:
-            s = trader.status(current_price)
-            print(
-                f"  [HOLD] Portfolio: ${s['total_value']:,.2f} "
-                f"(USDT: ${s['usdt']:,.2f} | BTC: {s['btc']:.6f}) "
-                f"| P&L: {'+'if s['pnl'] >= 0 else ''}{s['pnl']:,.2f} ({'+' if s['pnl_pct'] >= 0 else ''}{s['pnl_pct']:.2f}%)"
-            )
+
+        s = trader.status(current_price)
+        short_str = ""
+        if s["short"]:
+            sh = s["short"]
+            short_str = (f" | SHORT {sh['btc']:.6f} BTC @ ${sh['entry_price']:,.2f}"
+                         f" uPnL: {'+' if sh['pnl'] >= 0 else ''}{sh['pnl']:,.4f}")
+        print(
+            f"  Portfolio: ${s['total_value']:,.2f}"
+            f" (USDT: ${s['usdt']:,.2f} | BTC: {s['btc']:.6f}{short_str})"
+            f" | P&L: {'+' if s['pnl'] >= 0 else ''}{s['pnl']:,.2f} ({'+' if s['pnl_pct'] >= 0 else ''}{s['pnl_pct']:.2f}%)"
+        )
 
     except Exception as e:
         print(f"[ERROR] {e}")
