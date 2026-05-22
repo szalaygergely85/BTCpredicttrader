@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+tft_btc.ckpt
+meta.json
+portfolio.json
+predictions.json
+lightning_logs/
+.claude/
+*.log
