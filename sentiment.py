@@ -3,27 +3,34 @@ import ollama
 import json
 
 FEEDS = [
-    "https://feeds.feedburner.com/CoinDesk",
-    "https://cointelegraph.com/rss",
+    ("CoinDesk",        "https://feeds.feedburner.com/CoinDesk"),
+    ("CoinTelegraph",   "https://cointelegraph.com/rss"),
+    ("Reddit/Bitcoin",  "https://www.reddit.com/r/Bitcoin/.rss"),
+    ("Reddit/Crypto",   "https://www.reddit.com/r/CryptoCurrency/.rss"),
+    ("BitcoinMagazine", "https://bitcoinmagazine.com/.rss"),
+    ("Decrypt",         "https://decrypt.co/feed"),
 ]
 
 def fetch_headlines():
     headlines = []
-    for url in FEEDS:
-        feed = feedparser.parse(url)
-        for entry in feed.entries[:5]:
-            headlines.append(entry.title)
-    return headlines[:10]
+    for source, url in FEEDS:
+        try:
+            feed = feedparser.parse(url)
+            for entry in feed.entries[:3]:
+                headlines.append((source, entry.title))
+        except Exception as e:
+            print(f"  Feed error ({source}): {e}")
+    return headlines[:18]
 
 def get_sentiment():
     try:
-        headlines = fetch_headlines()
-        if not headlines:
+        headline_pairs = fetch_headlines()
+        if not headline_pairs:
             return {"sentiment": "NEUTRAL", "score": 50}
         print("  Latest headlines analyzed by llama3.1:")
-        for h in headlines:
-            print(f"    • {h}")
-        headlines_text = "\n".join(f"- {h}" for h in headlines)
+        for source, title in headline_pairs:
+            print(f"    [{source}] {title}")
+        headlines_text = "\n".join(f"- {title}" for _, title in headline_pairs)
         prompt = (
             "You are a crypto analyst. Given these BTC news headlines, "
             "respond with ONLY a JSON object like this: "

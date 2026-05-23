@@ -11,20 +11,27 @@ def load_portfolio():
             "usdt": STARTING_USDT,
             "btc": 0.0,
             "short": None,
+            "long_entry_price": None,
             "trades": [],
             "starting_usdt": STARTING_USDT,
         }
         save_portfolio(portfolio)
         return portfolio
     try:
+        data = None
         with open(PORTFOLIO_PATH) as f:
-            return json.load(f)
+            data = json.load(f)
+        # Migrate old portfolios that don't have long_entry_price
+        if "long_entry_price" not in data:
+            data["long_entry_price"] = None
+        return data
     except Exception:
         print("  [trader] portfolio.json corrupted, resetting.")
         portfolio = {
             "usdt": STARTING_USDT,
             "btc": 0.0,
             "short": None,
+            "long_entry_price": None,
             "trades": [],
             "starting_usdt": STARTING_USDT,
         }
@@ -60,6 +67,77 @@ def _total_value(portfolio, price):
         value += short["collateral"] + short_pnl
     return value
 
+def check_stops(current_price):
+    """
+    Check if stop loss or take profit levels have been hit.
+    Long position:  stop loss at -2% from entry, take profit at +3%
+    Short position: stop loss at +2% against us,  take profit at -3%
+    Returns: ("STOP_LOSS" | "TAKE_PROFIT" | None, "long" | "short" | None)
+    """
+    portfolio = load_portfolio()
+
+    # Check long stop/take-profit
+    if portfolio["btc"] > 0.0 and portfolio.get("long_entry_price"):
+        entry = portfolio["long_entry_price"]
+        pct_change = (current_price - entry) / entry
+
+        if pct_change <= -0.02:
+            return "STOP_LOSS", "long"
+        if pct_change >= 0.03:
+            return "TAKE_PROFIT", "long"
+
+    # Check short stop/take-profit
+    if portfolio.get("short"):
+        short = portfolio["short"]
+        entry = short["entry_price"]
+        pct_change = (current_price - entry) / entry  # positive = price went up = bad for short
+
+        if pct_change >= 0.02:
+            return "STOP_LOSS", "short"
+        if pct_change <= -0.03:
+            return "TAKE_PROFIT", "short"
+
+    return None, None
+
+def execute_stop(stop_type, position_type, current_price):
+    """
+    Close a position due to stop loss or take profit trigger.
+    Returns (trade_record, portfolio).
+    """
+    portfolio = load_portfolio()
+
+    if position_type == "long" and portfolio["btc"] > 0.0:
+        entry = portfolio.get("long_entry_price", current_price)
+        pct_change = (current_price - entry) / entry * 100
+        received = portfolio["btc"] * current_price
+        btc_sold = portfolio["btc"]
+        portfolio["usdt"] += received
+        note = f"entry ${entry:,.2f}, {pct_change:+.2f}%"
+        action = f"{stop_type} LONG"
+        _record_trade(portfolio, action, current_price, btc_sold, received, note=note)
+        trade = portfolio["trades"][-1]
+        portfolio["btc"] = 0.0
+        portfolio["long_entry_price"] = None
+        save_portfolio(portfolio)
+        return trade, portfolio
+
+    if position_type == "short" and portfolio.get("short"):
+        short = portfolio["short"]
+        entry = short["entry_price"]
+        pct_change = (current_price - entry) / entry * 100
+        short_pnl = (entry - current_price) * short["btc"]
+        returned = short["collateral"] + short_pnl
+        portfolio["usdt"] += max(returned, 0)
+        note = f"entry ${entry:,.2f}, {pct_change:+.2f}%"
+        action = f"{stop_type} SHORT"
+        _record_trade(portfolio, action, current_price, short["btc"], abs(short_pnl), note=note)
+        trade = portfolio["trades"][-1]
+        portfolio["short"] = None
+        save_portfolio(portfolio)
+        return trade, portfolio
+
+    return None, portfolio
+
 def execute(signal, price):
     portfolio = load_portfolio()
     trade = None
@@ -83,6 +161,8 @@ def execute(signal, price):
         bought = spend / price
         portfolio["usdt"] -= spend
         portfolio["btc"] += bought
+        # Track entry price for stop loss / take profit
+        portfolio["long_entry_price"] = price
         _record_trade(portfolio, "BUY", price, bought, spend)
         trade = portfolio["trades"][-1]
 
@@ -93,6 +173,7 @@ def execute(signal, price):
         _record_trade(portfolio, "SELL", price, portfolio["btc"], received)
         trade = portfolio["trades"][-1]
         portfolio["btc"] = 0.0
+        portfolio["long_entry_price"] = None
 
     # --- OPEN SHORT ---
     if signal in ("SELL", "STRONG SELL") and not portfolio.get("short") and portfolio["usdt"] > 1.0:
@@ -128,9 +209,12 @@ def status(price):
             "pnl": round(short_pnl, 4),
         }
 
+    long_entry = portfolio.get("long_entry_price")
+
     return {
         "usdt": round(portfolio["usdt"], 2),
         "btc": round(portfolio["btc"], 6),
+        "long_entry_price": long_entry,
         "short": short_info,
         "total_value": round(total_value, 2),
         "pnl": round(pnl, 2),
