@@ -1,9 +1,27 @@
 __pycache__/
 *.pyc
-tft_btc.ckpt
+
+# Trained TFT checkpoints (re-generated on first run)
+*.ckpt
+
+# Per-mode metadata (last_trained, val_accuracy, calibration)
 meta.json
+meta_*.json
+
+# Paper-trading state
 portfolio.json
+portfolio_*.json
+
+# Prediction logs
 predictions.json
-lightning_logs/
-.claude/
+predictions_*.json
+
+# Stdout captured by dashboard
+log_*.txt
 *.log
+
+# Lightning training logs
+lightning_logs/
+
+# Claude Code local cache
+.claude/

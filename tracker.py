@@ -45,10 +45,10 @@ def resolve_predictions(current_price):
         if entry["resolved"]:
             continue
         if current_tick - entry["tick"] >= HORIZON_TICKS:
-            actual_up = current_price > entry["price_at_prediction"] * 1.005
+            actual_up = float(current_price) > entry["price_at_prediction"] * 1.005
             predicted_up = entry["direction"] == "UP"
-            entry["correct"] = (actual_up == predicted_up)
-            entry["price_at_resolution"] = round(current_price, 2)
+            entry["correct"] = bool(actual_up == predicted_up)
+            entry["price_at_resolution"] = round(float(current_price), 2)
             entry["resolved"] = True
             changed = True
 

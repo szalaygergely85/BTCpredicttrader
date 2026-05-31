@@ -10,13 +10,15 @@ def get_signal(tft_result, sentiment_result, order_book_imbalance=0.0):
     confidence = tft_result["confidence"]
     sentiment = sentiment_result["sentiment"]
 
+    # Asymmetric thresholds: lower bar for BUY (model weaker on UP),
+    # higher bar for SELL (fewer shorts = less fee drag)
     if direction == "UP" and confidence >= 65 and sentiment == "BULLISH":
         signal = "STRONG BUY"
     elif direction == "UP" and confidence >= 55 and sentiment != "BEARISH":
         signal = "BUY"
-    elif direction == "DOWN" and confidence >= 65 and sentiment == "BEARISH":
+    elif direction == "DOWN" and confidence >= 85 and sentiment == "BEARISH":
         signal = "STRONG SELL"
-    elif direction == "DOWN" and confidence >= 55 and sentiment != "BULLISH":
+    elif direction == "DOWN" and confidence >= 80 and sentiment != "BULLISH":
         signal = "SELL"
     else:
         signal = "HOLD"

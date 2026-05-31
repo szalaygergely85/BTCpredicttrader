@@ -187,11 +187,49 @@ def get_training_data():
 
 def get_live_data():
     print("  Fetching live 1h candles...")
-    df = get_candles(Client.KLINE_INTERVAL_1HOUR, 500)
+    df = get_candles(Client.KLINE_INTERVAL_1HOUR, 600)
     df = add_indicators(df)
     print("  Adding 4h features for live data...")
     df = add_4h_features(df, limit=200)
     df = add_fear_greed(df)
     df = add_funding_rate(df)
+    df = df.dropna().reset_index(drop=True)
+    return df
+
+def get_scalp_training_data():
+    """6 months of 5-min candles for scalping model training."""
+    limit = 52560  # ~6 months of 5-min candles (bull + bear coverage)
+    print(f"  Fetching 5-min candles ({limit} = ~6 months, paginated)...")
+    df = get_candles(Client.KLINE_INTERVAL_5MINUTE, limit)
+    print(f"  Fetched {len(df)} raw 5-min candles. Adding indicators...")
+    df = add_indicators(df)
+    df = add_fear_greed(df)
+    df = add_funding_rate(df)
+    df_4h = get_candles(Client.KLINE_INTERVAL_4HOUR, 1100)
+    df_4h["rsi_4h"] = ta.momentum.RSIIndicator(df_4h["close"], window=14).rsi()
+    macd_4h = ta.trend.MACD(df_4h["close"])
+    df_4h["macd_diff_4h"] = macd_4h.macd_diff()
+    df_4h["ema20_4h"] = ta.trend.EMAIndicator(df_4h["close"], window=20).ema_indicator()
+    df_4h["ema50_4h"] = ta.trend.EMAIndicator(df_4h["close"], window=50).ema_indicator()
+    df_4h = df_4h[["time","rsi_4h","macd_diff_4h","ema20_4h","ema50_4h"]].dropna()
+    df = pd.merge_asof(df.sort_values("time"), df_4h.sort_values("time"), on="time", direction="backward")
+    df = df.dropna().reset_index(drop=True)
+    print(f"  Final scalp dataset: {len(df)} rows")
+    return df
+
+def get_scalp_live_data():
+    """Latest 5-min candles for scalping prediction."""
+    df = get_candles(Client.KLINE_INTERVAL_5MINUTE, 500)
+    df = add_indicators(df)
+    df = add_fear_greed(df)
+    df = add_funding_rate(df)
+    df_4h = get_candles(Client.KLINE_INTERVAL_4HOUR, 100)
+    df_4h["rsi_4h"] = ta.momentum.RSIIndicator(df_4h["close"], window=14).rsi()
+    macd_4h = ta.trend.MACD(df_4h["close"])
+    df_4h["macd_diff_4h"] = macd_4h.macd_diff()
+    df_4h["ema20_4h"] = ta.trend.EMAIndicator(df_4h["close"], window=20).ema_indicator()
+    df_4h["ema50_4h"] = ta.trend.EMAIndicator(df_4h["close"], window=50).ema_indicator()
+    df_4h = df_4h[["time","rsi_4h","macd_diff_4h","ema20_4h","ema50_4h"]].dropna()
+    df = pd.merge_asof(df.sort_values("time"), df_4h.sort_values("time"), on="time", direction="backward")
     df = df.dropna().reset_index(drop=True)
     return df

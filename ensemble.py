@@ -121,7 +121,8 @@ def train_all(df=None):
 
         df_slice = _get_data_slice(df, data_slice)
         tft, training_dataset, val_accuracy, calibration = train_single(
-            df_slice, encoder_length, path, label=label
+            df_slice, encoder_length, path, label=label,
+            horizon=4, threshold=1.004,
         )
 
         _models_state[label] = {
@@ -168,7 +169,7 @@ def load_all(df=None):
         data_slice = m_cfg["data_slice"]
 
         df_slice = _get_data_slice(df, data_slice)
-        df_prep = prepare_dataset(df_slice)
+        df_prep = prepare_dataset(df_slice, horizon=4, threshold=1.004)
         training_cutoff = int(len(df_prep) * 0.8)
         training_dataset = make_dataset(df_prep, training_cutoff, encoder_length=encoder_length)
 
